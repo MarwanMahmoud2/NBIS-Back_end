@@ -10,6 +10,22 @@ class MissingReport extends Model
 {
     use HasFactory;
 
+    // ── Status Constants ──────────────────────────────────────────────
+    public const STATUS_ACTIVE   = 'active';
+    public const STATUS_PENDING  = 'pending';
+    public const STATUS_RESOLVED = 'resolved';
+    public const STATUS_CLOSED   = 'closed';
+
+    /**
+     * Human-readable labels for each status (single source of truth).
+     */
+    public const STATUS_LABELS = [
+        self::STATUS_ACTIVE   => 'New',
+        self::STATUS_PENDING  => 'Under Investigation',
+        self::STATUS_RESOLVED => 'Resolved',
+        self::STATUS_CLOSED   => 'Closed',
+    ];
+
     protected $fillable = [
         'child_id',
         'reported_by',
@@ -33,5 +49,13 @@ class MissingReport extends Model
     public function reporter(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reported_by');
+    }
+
+    /**
+     * Get the human-readable label for the current status.
+     */
+    public function statusLabel(): string
+    {
+        return self::STATUS_LABELS[$this->status] ?? ucfirst($this->status);
     }
 }

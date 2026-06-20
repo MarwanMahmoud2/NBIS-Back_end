@@ -5,16 +5,17 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ChildController;
 use App\Http\Controllers\Api\ParentController;
 use App\Http\Controllers\Api\AdminController;
-use App\Http\Controllers\Api\MobileAuthController;
+use App\Http\Controllers\Api\AdminUserController;
+use App\Http\Controllers\Api\AdminNotificationController;
+use App\Http\Controllers\Api\AdminReportController;
 use App\Http\Controllers\Api\MobileChildController;
-use App\Http\Controllers\Api\MobileReportController;
 use App\Http\Controllers\Api\NurseDashboardController;
 use App\Http\Controllers\Api\PoliceDashboardController;
 use App\Http\Controllers\Api\PoliceController;
 
 /*
 |--------------------------------------------------------------------------
-| API عام — React + Mobile (نفس قاعدة البيانات)
+| Public Auth (web + mobile)
 |--------------------------------------------------------------------------
 */
 
@@ -32,7 +33,7 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
 
 /*
 |--------------------------------------------------------------------------
-| ولي الأمر (user)
+| Parent (user role)
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:sanctum', 'role:user', 'session.timeout'])->group(function () {
@@ -40,7 +41,9 @@ Route::middleware(['auth:sanctum', 'role:user', 'session.timeout'])->group(funct
     Route::get('/my-children/{child}', [ParentController::class, 'show']);
     Route::post('/missing-reports', [ParentController::class, 'reportMissing']);
     Route::get('/my-reports', [ParentController::class, 'myReports']);
+    Route::get('/my-reports/{report}', [ParentController::class, 'reportDetail']);
     Route::get('/parent/reports', [ParentController::class, 'getReports']);
+    Route::get('/parent/verification-logs', [ParentController::class, 'verificationLogs']);
     Route::post('/children/register-by-parent', [ChildController::class, 'storeByParent']);
 });
 
@@ -55,7 +58,7 @@ Route::middleware(['auth:sanctum', 'role:admin', 'session.timeout'])->group(func
 
 /*
 |--------------------------------------------------------------------------
-| ممرضة / أدمن — تسجيل طفل وقائمة الأطفال (جدول children)
+| Nurse / Admin — Child registration & listing
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:sanctum', 'role:nurse,admin', 'session.timeout'])->group(function () {
@@ -73,7 +76,7 @@ Route::middleware(['auth:sanctum', 'role:nurse,admin', 'session.timeout'])->grou
 
 /*
 |--------------------------------------------------------------------------
-| شرطة / أدمن — بحث وسجلات التحقق وربط الـ AI
+| Police / Admin — Search, verification logs, missing reports
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:sanctum', 'role:police,admin', 'session.timeout'])->group(function () {
@@ -88,19 +91,19 @@ Route::middleware(['auth:sanctum', 'role:police,admin', 'session.timeout'])->gro
     Route::post('/children/register-found', [ChildController::class, 'registerFound']);
 
     // Verification logs
-    Route::get('/logs', [AdminController::class, 'verificationLogs']);
-    Route::get('/verification-logs', [AdminController::class, 'verificationLogs']);
+    Route::get('/logs', [AdminReportController::class, 'verificationLogs']);
+    Route::get('/verification-logs', [AdminReportController::class, 'verificationLogs']);
 
     // Missing reports (shared by police and admin)
-    Route::get('/active-missing-reports', [AdminController::class, 'activeMissingReports']);
-    Route::get('/all-reports', [AdminController::class, 'allReports']);
-    Route::get('/missing-reports/{report}', [AdminController::class, 'missingReportDetails']);
-    Route::put('/missing-reports/{report}/status', [AdminController::class, 'updateMissingReportStatus']);
+    Route::get('/active-missing-reports', [AdminReportController::class, 'activeReports']);
+    Route::get('/all-reports', [AdminReportController::class, 'allReports']);
+    Route::get('/missing-reports/{report}', [AdminReportController::class, 'show']);
+    Route::put('/missing-reports/{report}/status', [AdminReportController::class, 'updateStatus']);
 });
 
 /*
 |--------------------------------------------------------------------------
-| أدمن — إدارة النظام والـ Dashboard
+| Admin — System management & dashboard
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:sanctum', 'role:admin', 'session.timeout'])->group(function () {
@@ -109,44 +112,44 @@ Route::middleware(['auth:sanctum', 'role:admin', 'session.timeout'])->group(func
     Route::get('/admin/dashboard/children', [AdminController::class, 'childrenOverview']);
 
     // Users management
-    Route::get('/admin/users', [AdminController::class, 'users']);
-    Route::post('/admin/users', [AdminController::class, 'createUser']);
-    Route::put('/admin/users/{user}', [AdminController::class, 'updateUser']);
-    Route::delete('/admin/users/{user}', [AdminController::class, 'deleteUser']);
+    Route::get('/admin/users', [AdminUserController::class, 'index']);
+    Route::post('/admin/users', [AdminUserController::class, 'store']);
+    Route::put('/admin/users/{user}', [AdminUserController::class, 'update']);
+    Route::delete('/admin/users/{user}', [AdminUserController::class, 'destroy']);
 
     // Children management
     Route::get('/admin/children', [AdminController::class, 'children']);
     Route::delete('/admin/children/{child}', [AdminController::class, 'deleteChild']);
-    Route::get('/admin/verification-logs', [AdminController::class, 'verificationLogs']);
+    Route::get('/admin/verification-logs', [AdminReportController::class, 'verificationLogs']);
 
     // Settings
     Route::get('/admin/settings', [AdminController::class, 'settings']);
     Route::put('/admin/settings', [AdminController::class, 'updateSettings']);
 
     // Notifications
-    Route::get('/admin/notifications', [AdminController::class, 'notifications']);
-    Route::get('/admin/notifications/unread-count', [AdminController::class, 'notificationsUnreadCount']);
-    Route::patch('/admin/notifications/{notification}/read', [AdminController::class, 'markNotificationRead']);
-    Route::patch('/admin/notifications/read-all', [AdminController::class, 'markAllNotificationsRead']);
+    Route::get('/admin/notifications', [AdminNotificationController::class, 'index']);
+    Route::get('/admin/notifications/unread-count', [AdminNotificationController::class, 'unreadCount']);
+    Route::patch('/admin/notifications/{notification}/read', [AdminNotificationController::class, 'markRead']);
+    Route::patch('/admin/notifications/read-all', [AdminNotificationController::class, 'markAllRead']);
 });
 
 /*
 |--------------------------------------------------------------------------
-| روابط الموبايل المخصصة (Mobile Application APIs — Flutter)
+| Mobile Application APIs (Flutter) — all point to unified controllers
 |--------------------------------------------------------------------------
 */
 
-// 1. روابط الحسابات المفتوحة للموبايل (بدون Token)
-Route::post('/mobile/login', [MobileAuthController::class, 'login']);
-Route::post('/mobile/register', [MobileAuthController::class, 'register']);
+// Open mobile routes (no token required)
+Route::post('/mobile/login', [AuthController::class, 'login']);
+Route::post('/mobile/register', [AuthController::class, 'register']);
 
-// 2. روابط الموبايل المحمية (تتطلب Token من Sanctum)
+// Protected mobile routes
 Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
     // Auth
-    Route::post('/mobile/logout', [MobileAuthController::class, 'logout']);
-    Route::get('/mobile/profile', [MobileAuthController::class, 'profile']);
-    Route::post('/mobile/profile', [MobileAuthController::class, 'updateProfile']);
-    Route::put('/mobile/password', [MobileAuthController::class, 'updatePassword']);
+    Route::post('/mobile/logout', [AuthController::class, 'logout']);
+    Route::get('/mobile/profile', [AuthController::class, 'me']);
+    Route::post('/mobile/profile', [AuthController::class, 'updateProfile']);
+    Route::put('/mobile/password', [AuthController::class, 'updatePassword']);
 
     // Children
     Route::get('/mobile/children', [MobileChildController::class, 'index']);
@@ -157,10 +160,10 @@ Route::middleware(['auth:sanctum', 'session.timeout'])->group(function () {
     Route::post('/mobile/children/search', [MobileChildController::class, 'searchMissing']);
 
     // Missing Reports
-    Route::post('/mobile/reports/missing', [MobileReportController::class, 'reportMissing']);
-    Route::get('/mobile/reports', [MobileReportController::class, 'myReports']);
-    Route::get('/mobile/reports/{report}', [MobileReportController::class, 'show']);
+    Route::post('/mobile/reports/missing', [ParentController::class, 'reportMissing']);
+    Route::get('/mobile/reports', [ParentController::class, 'myReports']);
+    Route::get('/mobile/reports/{report}', [ParentController::class, 'reportDetail']);
 
     // Verification Logs
-    Route::get('/mobile/verification-logs', [MobileReportController::class, 'verificationLogs']);
+    Route::get('/mobile/verification-logs', [ParentController::class, 'verificationLogs']);
 });

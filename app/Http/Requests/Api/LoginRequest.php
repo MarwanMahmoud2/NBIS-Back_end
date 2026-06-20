@@ -12,7 +12,7 @@ class LoginRequest extends FormRequest
     }
 
     /**
-     * واجهة الموبايل قد تسمي الحقل "ID" — هو البريد الإلكتروني (email).
+     * Normalize alternative field names to email / phone.
      */
     protected function prepareForValidation(): void
     {
@@ -24,7 +24,8 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255'],
+            'email'    => ['nullable', 'string', 'lowercase', 'email', 'max:255', 'required_without:phone'],
+            'phone'    => ['nullable', 'string', 'max:15', 'required_without:email'],
             'password' => ['required', 'string'],
         ];
     }
@@ -32,7 +33,8 @@ class LoginRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'email.required' => 'Email is required (the app field labeled ID is the email address).',
+            'email.required_without'    => 'Email or phone is required.',
+            'phone.required_without'    => 'Email or phone is required.',
         ];
     }
 }

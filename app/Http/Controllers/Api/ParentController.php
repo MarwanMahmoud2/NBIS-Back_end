@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Child;
 use App\Models\MissingReport;
+use App\Models\VerificationLog;
 use App\Services\ParentChildService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,7 +23,7 @@ class ParentController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $children->map(fn(Child $child) => $this->parentChild->childPayload($child)),
+            'data'    => $children->map(fn (Child $child) => $this->parentChild->childPayload($child)),
         ]);
     }
 
@@ -54,7 +55,7 @@ class ParentController extends Controller
             $validated['notes'] ?? null,
             $validated['last_seen_location'] ?? null,
             $validated['last_seen_date'] ?? null,
-            $validated['description'] ?? null
+            $validated['description'] ?? null,
         );
 
         if ($result['status'] === 'already_missing') {
@@ -75,22 +76,22 @@ class ParentController extends Controller
     }
 
     /**
-     * Get parent's verification logs (from VerificationLog model).
+     * Get parent's verification logs.
      */
     public function getReports(Request $request): JsonResponse
     {
-        $reports = \App\Models\VerificationLog::where('user_id', $request->user()->id)
+        $reports = VerificationLog::where('user_id', $request->user()->id)
             ->latest()
             ->get();
 
         return response()->json([
             'success' => true,
-            'data' => $reports,
+            'data'    => $reports,
         ]);
     }
 
     /**
-     * Get parent's missing reports (from MissingReport model).
+     * Get parent's missing reports.
      */
     public function myReports(Request $request): JsonResponse
     {
@@ -99,33 +100,69 @@ class ParentController extends Controller
             ->latest()
             ->get()
             ->map(function ($report) {
-                // Map database status to display status values
-                $statusMap = [
-                    'active'   => 'New',
-                    'pending'  => 'Under Investigation',
-                    'resolved' => 'Resolved',
-                    'closed'   => 'Closed',
-                ];
-                $status = $statusMap[$report->status] ?? ucfirst($report->status);
-
                 return [
                     'id'                 => $report->id,
                     'child_name'         => $report->child->name ?? 'Unknown',
                     'child_id'           => $report->child->id ?? 'Unknown',
                     'type'               => 'Missing Child',
-                    'status'             => $status,
+                    'status'             => $report->statusLabel(),
                     'date'               => $report->created_at ? $report->created_at->format('F Y') : null,
                     'avatar'             => $report->child->name ? strtoupper(substr($report->child->name, 0, 1)) : 'U',
                     'notes'              => $report->notes,
                     'last_seen_location' => $report->last_seen_location,
                     'last_seen_date'     => $report->last_seen_date,
+                    'description'        => $report->description,
                     'created_at'         => $report->created_at ? $report->created_at->toIso8601String() : null,
                 ];
             });
 
         return response()->json([
             'success' => true,
-            'data' => $reports,
+            'data'    => $reports,
+        ]);
+    }
+
+    /**
+     * Single missing report detail (reporter or admin only).
+     */
+    public function reportDetail(Request $request, MissingReport $report): JsonResponse
+    {
+        if ($report->reported_by !== $request->user()->id && $request->user()->role !== 'admin') {
+            return response()->json([
+                'message' => 'Unauthorized.',
+            ], 403);
+        }
+
+        $report->load('child');
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'id'                 => $report->id,
+                'child'              => $report->child ? $this->parentChild->childPayload($report->child) : null,
+                'status'             => $report->statusLabel(),
+                'notes'              => $report->notes,
+                'last_seen_location' => $report->last_seen_location,
+                'last_seen_date'     => $report->last_seen_date,
+                'description'        => $report->description,
+                'created_at'         => $report->created_at->toIso8601String(),
+                'updated_at'         => $report->updated_at->toIso8601String(),
+            ],
+        ]);
+    }
+
+    /**
+     * Get parent's verification log history.
+     */
+    public function verificationLogs(Request $request): JsonResponse
+    {
+        $logs = VerificationLog::where('user_id', $request->user()->id)
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $logs,
         ]);
     }
 }

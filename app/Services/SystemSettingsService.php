@@ -29,6 +29,14 @@ class SystemSettingsService
         return $result;
     }
 
+    /**
+     * Return the current system language (used by SetLanguage middleware).
+     */
+    public function getSystemLanguage(): string
+    {
+        return $this->getAll()['language'] ?? 'en';
+    }
+
     public function update(array $payload, User $actor): array
     {
         $current = $this->getAll();

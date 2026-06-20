@@ -12,6 +12,18 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
+    /**
+     * Default account settings applied to every new user.
+     */
+    public const DEFAULT_SETTINGS = [
+        'language'        => 'en',
+        'notifications'   => true,
+        'email_alerts'    => true,
+        'two_factor'      => false,
+        'login_alerts'    => false,
+        'session_timeout' => 30,
+    ];
+
     protected $fillable = [
         'name',
         'email',

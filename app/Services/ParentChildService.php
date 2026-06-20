@@ -7,9 +7,10 @@ use App\Models\Child;
 use App\Models\MissingReport;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\UploadedFile;
 
 /**
- * منطق مشترك بين واجهة ولي الأمر (ويب) وواجهة الـ API (موبايل).
+ * Shared parent-child business logic (web + mobile).
  */
 class ParentChildService
 {
@@ -93,6 +94,57 @@ class ParentChildService
         $this->sendMissingChildNotifications($child, $user, $report);
 
         return ['status' => 'success', 'child' => $child->fresh(), 'notes' => $notes, 'report' => $report];
+    }
+
+    /**
+     * Auto-link hospital-registered children to a parent account
+     * by matching father_national_id or parent_email.
+     */
+    public function linkExistingChildrenToParent(User $user): void
+    {
+        $query = Child::query()->whereNull('user_id');
+
+        $query->where(function ($q) use ($user) {
+            if ($user->national_id) {
+                $q->orWhere('father_national_id', $user->national_id);
+            }
+            if ($user->email) {
+                $q->orWhere('parent_email', $user->email);
+            }
+        });
+
+        $query->update([
+            'user_id'      => $user->id,
+            'parent_email' => $user->email,
+            'is_linked'    => true,
+        ]);
+    }
+
+    /**
+     * Register a new child from a parent submission (web or mobile).
+     */
+    public function registerByParent(User $user, array $data, ?UploadedFile $footprintImage = null, ?UploadedFile $childPhoto = null): Child
+    {
+        $footprintPath  = $footprintImage?->store('footprints', 'public');
+        $childPhotoPath = $childPhoto?->store('child_photos', 'public');
+
+        return Child::create([
+            'user_id'            => $user->id,
+            'name'               => $data['name'],
+            'gender'             => $data['gender'],
+            'birth_date'         => $data['birth_date'] ?? null,
+            'nfc_tag_id'         => $data['nfc_tag_id'] ?? null,
+            'footprint_path'     => $footprintPath,
+            'child_photo_path'   => $childPhotoPath,
+            'mother_name'        => $data['mother_name'] ?? null,
+            'father_name'        => $data['father_name'] ?? $user->name,
+            'father_phone'       => $data['father_phone'] ?? $user->phone,
+            'father_national_id' => $user->national_id,
+            'parent_email'       => $user->email,
+            'is_linked'          => true,
+            'status'             => 'verified',
+            'notes'              => $data['notes'] ?? null,
+        ]);
     }
 
     private function sendMissingChildNotifications(Child $child, User $reporter, MissingReport $report): void
